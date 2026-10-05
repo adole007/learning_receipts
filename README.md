@@ -12,7 +12,7 @@ Turn any free, learner-chosen material (YouTube videos, PDFs, articles) into a s
 
 ```bash
 npm install
-cp .env.example .env.local        # add DATABASE_URL (Neon) and ANTHROPIC_API_KEY
+cp .env.example .env.local        # add DATABASE_URL (Neon) and ANTHROPIC_API_KEY (or NVIDIA_API_KEY as a fallback)
 npx drizzle-kit migrate           # or: psql "$DATABASE_URL" -f drizzle/0000_init.sql
 npm run dev                       # http://localhost:3000
 ```
@@ -21,8 +21,8 @@ Tests: `npm test` (21 tests covering the verification engine, mastery model, spa
 
 ### Deploy (Vercel)
 1. Push to GitHub, import into Vercel.
-2. Set `DATABASE_URL`, `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, optionally `ANTHROPIC_VERIFIER_MODEL`.
-3. Pathway processing runs in `after()` with `maxDuration = 300`. That needs a Vercel plan allowing 300s functions (Pro, or Hobby with Fluid compute). For very large inputs, move `processPathway` to a queue (Inngest / QStash) — it is already a self-contained function.
+2. Set `DATABASE_URL`, `NEXT_PUBLIC_APP_URL`, and either `ANTHROPIC_API_KEY` (+ `ANTHROPIC_MODEL`, optionally `ANTHROPIC_VERIFIER_MODEL`) or `NVIDIA_API_KEY` (+ `NVIDIA_MODEL`).
+3. Work is split so each step fits in one function invocation (`maxDuration = 300`, which needs Pro or Hobby with Fluid compute): ingestion and structuring run in `after()` on pathway creation, then the pathway page calls `POST /api/modules/[id]/generate` for each module in turn. Each step has a 280s time budget; a step that runs out of time fails cleanly and can be retried from its button.
 
 ---
 

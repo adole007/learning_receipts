@@ -1,7 +1,10 @@
-/** End-to-end processing of a new pathway: ingest → structure → generate. */
+/**
+ * Background processing of a new pathway: ingest → structure.
+ * Question generation runs per module in separate requests (see AutoGenerate)
+ * so each step fits within one serverless invocation.
+ */
 import { asc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { generateQuestionsForModule } from "./generate";
 import { ingestUrl } from "./ingest";
 import { sha256 } from "./receipts";
 import { structurePathway, type StructChunk } from "./structure";
@@ -22,7 +25,9 @@ async function mapLimit<T>(items: T[], limit: number, fn: (t: T) => Promise<void
   );
 }
 
-export async function processPathway(pathwayId: string) {
+/** `budgetMs` must stay below the calling route's maxDuration. */
+export async function processPathway(pathwayId: string, budgetMs = 280_000) {
+  const deadline = Date.now() + budgetMs;
   const db = getDb();
   try {
     const pathway = await db.query.pathways.findFirst({ where: eq(schema.pathways.id, pathwayId), with: { sources: true } });
@@ -56,15 +61,13 @@ export async function processPathway(pathwayId: string) {
 
     // 2) Structure
     await setStatus(pathwayId, "STRUCTURING", `Organising ${chunks.length} evidence chunks into modules`);
-    const structure = await structurePathway({ title: pathway.title, goal: pathway.goal, chunks });
-    const moduleIds: string[] = [];
+    const structure = await structurePathway({ title: pathway.title, goal: pathway.goal, chunks, deadline: deadline - 10_000 });
     await db.transaction(async (tx) => {
       for (const [mi, m] of structure.modules.entries()) {
         const [mod] = await tx
           .insert(schema.modules)
           .values({ pathwayId, ordinal: mi, title: m.title, summary: m.summary })
           .returning({ id: schema.modules.id });
-        moduleIds.push(mod.id);
         for (const [oi, o] of m.objectives.entries()) {
           const [obj] = await tx
             .insert(schema.objectives)
@@ -74,17 +77,7 @@ export async function processPathway(pathwayId: string) {
         }
       }
     });
-    await setStatus(pathwayId, "READY", "Generating verified assessments");
-
-    // 3) Generate assessments (pathway is usable while this runs)
-    for (const [i, id] of moduleIds.entries()) {
-      try {
-        await generateQuestionsForModule(id);
-      } catch (e) {
-        console.error(`[pipeline] generation failed for module ${id}:`, e);
-      }
-      await setStatus(pathwayId, "READY", i + 1 < moduleIds.length ? `Generated assessments for ${i + 1}/${moduleIds.length} modules` : undefined);
-    }
+    await setStatus(pathwayId, "READY");
   } catch (e) {
     console.error("[pipeline]", e);
     await setStatus(pathwayId, "FAILED", (e as Error).message.slice(0, 500));

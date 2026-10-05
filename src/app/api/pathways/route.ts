@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getDb, schema } from "@/db";
 import { processPathway } from "@/engine/pipeline";
 import { guessKind } from "@/engine/ingest";
+import { llmProvider } from "@/engine/llm";
 import { handle } from "@/lib/api";
 import { createSlug } from "@/lib/ids";
 import { ensureLearner, getLearnerId, HttpError } from "@/lib/learner";
@@ -19,7 +20,7 @@ export const POST = handle(async (req: Request) => {
   const learnerId = await getLearnerId();
   const input = body.parse(await req.json());
   const links = Array.from(new Set(input.links));
-  if (!process.env.ANTHROPIC_API_KEY) throw new HttpError(500, "Server is missing ANTHROPIC_API_KEY");
+  if (!llmProvider()) throw new HttpError(500, "Server is missing ANTHROPIC_API_KEY or NVIDIA_API_KEY");
 
   await ensureLearner(learnerId);
   const db = getDb();

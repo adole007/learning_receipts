@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AutoGenerate } from "@/components/AutoGenerate";
 import { EvidenceChip, StatusPill, Bar, pct } from "@/components/bits";
 import { ReadinessCard } from "@/components/ReadinessCard";
 import { ShareToggle } from "@/components/ShareToggle";
@@ -52,11 +53,12 @@ export default async function PathwayPage({ params }: { params: Promise<{ id: st
   const due = allQuestions.filter((q) => q.attempts.length && q.schedule && q.schedule.dueAt.getTime() <= now).length;
   const seen = allQuestions.filter((q) => q.attempts.length).length;
   const answered = allQuestions.reduce((n, q) => n + q.attempts.length, 0);
+  const pending = p.modules.filter((m) => !m.questionsGeneratedAt).map((m) => ({ id: m.id, title: m.title }));
 
   return (
     <>
       {header}
-      <StatusPoller pathwayId={p.id} initialStatus={p.status} compact />
+      {pending.length > 0 && <AutoGenerate pending={pending} />}
       <div className="grid grid-2" style={{ marginTop: 16, alignItems: "start" }}>
         <ReadinessCard m={mastery} />
         <div className="card stack">

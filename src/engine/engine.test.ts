@@ -8,6 +8,7 @@ import { sanitiseStructure } from "./structure";
 import { windowSegments, youtubeId } from "./ingest/youtube";
 import { pagesToChunks } from "./ingest/pdf";
 import { paragraphsToChunks } from "./ingest/article";
+import { salvageQuestions } from "./generate";
 
 const PAGE = `Gradient descent is an optimisation algorithm. At each step, the weights are moved
 in the direction of the negative gradient of the loss, scaled by the learning rate.
@@ -180,5 +181,18 @@ describe("ingestion chunkers", () => {
     const chunks = paragraphsToChunks(paras, "https://blog.example.com/post#top");
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks[0].deepLink.startsWith("https://blog.example.com/post#:~:text=Paragraph")).toBe(true);
+  });
+});
+
+describe("salvageQuestions", () => {
+  const q = (id: string) => ({ objectiveId: id, stem: `Q ${id}?`, evidence: [{ chunkId: "c1", quote: "a quote" }] });
+  it("recovers every object when one is missing its closing brace", () => {
+    const good = JSON.stringify([q("O1"), q("O2"), q("O3")]);
+    const broken = good.replace(`"a quote"}]},{"objectiveId":"O3"`, `"a quote"}],{"objectiveId":"O3"`);
+    expect(() => JSON.parse(broken)).toThrow();
+    expect(salvageQuestions(broken)).toEqual([q("O1"), q("O2"), q("O3")]);
+  });
+  it("returns nothing for placeholder output", () => {
+    expect(salvageQuestions("[...]")).toEqual([]);
   });
 });

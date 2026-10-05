@@ -62,7 +62,7 @@ export function sanitiseStructure(s: StructuredPathway, validIds: Set<string>): 
   return { modules };
 }
 
-export async function structurePathway(input: { title: string; goal?: string | null; chunks: StructChunk[] }) {
+export async function structurePathway(input: { title: string; goal?: string | null; chunks: StructChunk[]; deadline?: number }) {
   const prompt = `Pathway title: ${input.title}
 ${input.goal ? `Learner goal: ${input.goal}\n` : ""}
 Here are the learner's materials, split into addressable evidence chunks:
@@ -76,6 +76,7 @@ Organise these into modules and objectives using the submit_structure tool.`;
     prompt,
     tool: { name: "submit_structure", description: "Submit the pathway structure", schema: structureSchema },
     maxTokens: 8000,
+    deadline: input.deadline,
   });
   const structured = sanitiseStructure(raw, new Set(input.chunks.map((c) => c.id)));
   if (!structured.modules.length) throw new Error("Structuring produced no evidence-backed objectives");

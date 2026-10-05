@@ -11,5 +11,6 @@ export const POST = handle(async (_req: Request, ctx: { params: Promise<{ id: st
   const mod = await getDb().query.modules.findFirst({ where: eq(schema.modules.id, id) });
   if (!mod) throw new HttpError(404, "Module not found");
   await requireOwnedPathway(mod.pathwayId);
+  if (mod.questionsGeneratedAt) return { created: 0, rejected: 0, alreadyGenerated: true };
   return generateQuestionsForModule(id);
 });
